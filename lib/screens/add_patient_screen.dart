@@ -115,7 +115,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
 
               // حقل الجنس (Dropdown)
               DropdownButtonFormField<String>(
-                value: _selectedGender,
+                initialValue: _selectedGender,
                 decoration: InputDecoration(
                   labelText: 'الجنس',
                   labelStyle: TextStyle(fontSize: 14.sp),

@@ -214,7 +214,7 @@ class PdfReportGenerator {
           final value = data[entry.key]?.toString() ?? '';
           if (value.isEmpty || value == 'null') return pw.Container();
           return pw.Row(children: [pw.SizedBox(width: 110, child: pw.Text('${entry.value}:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))), pw.Expanded(child: pw.Text(value, style: const pw.TextStyle(fontSize: 10)))]);
-        }).toList(),
+        }),
       ]),
     );
   }
@@ -231,7 +231,7 @@ class PdfReportGenerator {
           pw.TableHelper.fromTextArray(headers: ['المهارة', 'الدرجة'], data: entry.value.map((skill) => [skill['skill_description'], '${skill['score']} / 5']).toList(), border: pw.TableBorder.all(width: 1, color: PdfColors.grey), headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold), cellAlignment: pw.Alignment.centerRight),
           pw.SizedBox(height: 10)
         ]);
-      }).toList()
+      })
     ]);
   }
 }

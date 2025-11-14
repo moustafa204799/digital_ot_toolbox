@@ -4,8 +4,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart'; 
 import 'dart:typed_data'; 
 import 'package:printing/printing.dart'; 
-import 'dart:io'; 
-import 'package:path_provider/path_provider.dart'; 
 
 import '../models/patient.dart';
 import '../database/database_helper.dart'; 

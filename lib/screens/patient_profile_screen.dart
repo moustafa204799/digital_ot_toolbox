@@ -290,7 +290,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _selectedJoint,
+                  initialValue: _selectedJoint,
                   decoration: InputDecoration(labelText: 'المفصل', contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h), border: const OutlineInputBorder()),
                   items: _joints.map((j) => DropdownMenuItem(value: j, child: Text(j, style: TextStyle(fontSize: 12.sp)))).toList(),
                   onChanged: (v) => setState(() { _selectedJoint = v; _selectedMotion = _motions[v]!.first; _loadChartData(); }),
@@ -299,7 +299,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
               SizedBox(width: 10.w),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _selectedMotion,
+                  initialValue: _selectedMotion,
                   decoration: InputDecoration(labelText: 'الحركة', contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h), border: const OutlineInputBorder()),
                   items: _selectedJoint == null ? [] : _motions[_selectedJoint]!.map((m) => DropdownMenuItem(value: m, child: Text(m, style: TextStyle(fontSize: 12.sp)))).toList(),
                   onChanged: (v) => setState(() { _selectedMotion = v; _loadChartData(); }),

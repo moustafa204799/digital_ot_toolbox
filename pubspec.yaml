@@ -18,11 +18,14 @@ dependencies:
   flutter_screenutil: ^5.9.3
   printing: ^5.14.2
   share_plus: ^12.0.1
-  fl_chart: ^0.68.0  # ✅ (تم النقل إلى هنا)
-  image_picker: ^1.0.7       # 🆕 لاختيار الصور
-  permission_handler: ^11.3.0 # 🆕 لإدارة الأذونات (Android/iOS)
+  fl_chart: ^0.68.0
+  image_picker: ^1.0.7
+  permission_handler: ^11.3.0
   url_launcher: ^6.2.5
 
+  # مكتبة شاشة البداية الجديدة
+  splash_master: ^0.0.3
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
@@ -31,10 +34,44 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
   assets:
     - assets/fonts/NotoSansArabic-Regular.ttf 
     - assets/fonts/NotoColorEmoji-Regular.ttf
+    - assets/images/  # تأكد أن الملفات أدناه موجودة داخل هذا المجلد:
+      # - assets/images/icon_foreground.png
+      # - assets/images/icon_background.png
+      # - assets/images/app_icon.png
+      # - assets/images/splash_logo.png
+
   fonts:
+    - family: NotoSansArabic
+      fonts:
+        - asset: assets/fonts/NotoSansArabic-Regular.ttf
+
     - family: NotoColorEmoji
       fonts:
         - asset: assets/fonts/NotoColorEmoji-Regular.ttf
+
+# إعدادات أيقونة التطبيق (Adaptive icon)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  # نسخة عامة (legacy) — تضمن توافق على بعض الأجهزة
+  image_path: "assets/images/app_icon.png"
+  # إعداد adaptive (foreground must be PNG with transparency)
+  adaptive_icon_background: "assets/images/icon_background.png"  # أو "#00A9B7" لو عايز لون ثابت
+  adaptive_icon_foreground: "assets/images/icon_foreground.png"
+  min_sdk_android: 21
+
+# إعدادات شاشة البداية (تظهر عند فتح التطبيق)
+splash_master:
+  # لون الخلفية الافتراضي (يُستخدم لو لم توفر background image)
+  color: '#000000'
+  # صورة الشعار (لازم تكون موجودة داخل assets/images/)
+  image: 'assets/images/splash_logo.png'
+  android_gravity: 'center'
+  ios_content_mode: 'center'
+  android_12_and_above:
+    color: '#000000'
+    image: 'assets/images/splash_logo.png'

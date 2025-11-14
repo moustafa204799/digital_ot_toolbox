@@ -77,7 +77,7 @@ class _ROMAssessmentScreenState extends State<ROMAssessmentScreen> with SingleTi
         String joint = jointParts[1];
         String motion = row['motion_type'];
         
-        String key = '${side}_${joint}_${motion}';
+        String key = '${side}_${joint}_$motion';
         
         if (_results.containsKey(key)) {
           _results[key] = {
@@ -284,7 +284,11 @@ class _RomInputSheetState extends State<_RomInputSheet> {
   void updateValue(double val) {
     setState(() {
       val = val.clamp(0.0, widget.maxROM);
-      if (_selectedType.contains('Active')) activeValue = val; else passiveValue = val;
+      if (_selectedType.contains('Active')) {
+        activeValue = val;
+      } else {
+        passiveValue = val;
+      }
     });
   }
 

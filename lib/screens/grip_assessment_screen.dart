@@ -203,7 +203,7 @@ class _GripAssessmentScreenState extends State<GripAssessmentScreen> {
         Text(label, style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold, color: textColor)),
         SizedBox(height: 8.h),
         DropdownButtonFormField<String>(
-          value: _results[hand]![key],
+          initialValue: _results[hand]![key],
           isExpanded: true,
           dropdownColor: isDark ? Colors.grey[800] : Colors.white,
           style: TextStyle(fontSize: 13.sp, color: textColor),

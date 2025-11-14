@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:splash_master/splash_master.dart'; // 🆕 استيراد المكتبة
 import 'screens/dashboard_screen.dart';
 import 'database/database_helper.dart';
 
@@ -9,9 +10,14 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 🆕 تهيئة شاشة البداية (تمنع ظهور التطبيق حتى يجهز)
+  SplashMaster.initialize();
+
   await initializeDateFormatting('ar', null);
   await DatabaseHelper.instance.insertInitialSkills();
   
+  // تحميل الثيم المحفوظ
   final settings = await DatabaseHelper.instance.getSettings();
   if (settings != null) {
     if (settings.themeMode == 'light') {
@@ -22,6 +28,9 @@ void main() async {
       themeNotifier.value = ThemeMode.system;
     }
   }
+
+  // 🆕 إخفاء شاشة البداية والسماح بظهور التطبيق
+  SplashMaster.resume();
 
   runApp(const MyApp());
 }
@@ -49,12 +58,7 @@ class MyApp extends StatelessWidget {
                 brightness: Brightness.light,
                 primarySwatch: Colors.blue,
                 scaffoldBackgroundColor: Colors.grey[50],
-                // ✅ ضبط النص ليكون أسود في الوضع الفاتح
-                textTheme: Typography.englishLike2018.apply(
-                  fontSizeFactor: 1.sp,
-                  bodyColor: Colors.black,
-                  displayColor: Colors.black,
-                ),
+                textTheme: Typography.englishLike2018.apply(fontSizeFactor: 1.sp),
                 useMaterial3: true,
                 fontFamily: 'NotoSansArabic',
                 appBarTheme: const AppBarTheme(
@@ -74,12 +78,7 @@ class MyApp extends StatelessWidget {
                 brightness: Brightness.dark,
                 primarySwatch: Colors.indigo,
                 scaffoldBackgroundColor: const Color(0xFF121212),
-                // ✅ ضبط النص ليكون أبيض في الوضع الداكن
-                textTheme: Typography.englishLike2018.apply(
-                  fontSizeFactor: 1.sp,
-                  bodyColor: Colors.white,
-                  displayColor: Colors.white,
-                ),
+                textTheme: Typography.englishLike2018.apply(fontSizeFactor: 1.sp, bodyColor: Colors.white),
                 useMaterial3: true,
                 fontFamily: 'NotoSansArabic',
                 appBarTheme: const AppBarTheme(

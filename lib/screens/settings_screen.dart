@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:url_launcher/url_launcher.dart'; // 🆕 تأكد من إضافة المكتبة لـ pubspec.yaml
+import 'package:url_launcher/url_launcher.dart'; 
 import '../database/database_helper.dart';
 import '../models/ot_settings.dart';
-import '../main.dart'; // لاستدعاء themeNotifier
+import '../main.dart'; 
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,7 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   OtSettings? _currentSettings;
   String? _logoPath;
-  String _selectedTheme = 'system'; // الافتراضي
+  String _selectedTheme = 'system'; 
   bool _isLoading = true;
 
   @override
@@ -31,6 +31,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
+    await DatabaseHelper.instance.insertInitialSettings();
+    
     final settings = await DatabaseHelper.instance.getSettings();
     if (mounted) {
       setState(() {
@@ -38,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (settings != null) {
           _otNameController.text = settings.otName;
           _logoPath = settings.clinicLogoPath;
-          _selectedTheme = settings.themeMode; // قراءة الثيم المحفوظ
+          _selectedTheme = settings.themeMode;
         }
         _isLoading = false;
       });
@@ -56,37 +58,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() { _logoPath = newPath; });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
     }
   }
 
   Future<void> _saveSettings() async {
     if (_formKey.currentState!.validate()) {
+      if (_currentSettings == null) return;
+
       final newSettings = OtSettings(
-        id: _currentSettings?.id,
+        id: _currentSettings!.id,
         otName: _otNameController.text,
         clinicLogoPath: _logoPath,
         appVersion: _currentSettings?.appVersion ?? '1.0.0',
-        themeMode: _selectedTheme, // 🆕 حفظ الثيم
+        themeMode: _selectedTheme,
       );
 
       final result = await DatabaseHelper.instance.updateSettings(newSettings);
       
-      // 🆕 تحديث الثيم فوراً
-      if (_selectedTheme == 'light') themeNotifier.value = ThemeMode.light;
-      else if (_selectedTheme == 'dark') themeNotifier.value = ThemeMode.dark;
+      if (_selectedTheme == 'light') {
+        themeNotifier.value = ThemeMode.light;
+      } else if (_selectedTheme == 'dark') themeNotifier.value = ThemeMode.dark;
       else themeNotifier.value = ThemeMode.system;
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result > 0 ? '✅ تم الحفظ وتحديث المظهر' : '❌ فشل الحفظ')),
-        );
-        setState(() { _currentSettings = newSettings; });
+        if (result > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ تم حفظ التغييرات بنجاح'), backgroundColor: Colors.green),
+          );
+          setState(() { _currentSettings = newSettings; });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('⚠️ لم يتم إجراء أي تغييرات أو فشل الحفظ')),
+          );
+        }
       }
     }
   }
 
-  // دالة مساعدة لفتح الروابط
   Future<void> _launchURL(String url) async {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -109,8 +118,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    
-                    // --- قسم البيانات الشخصية ---
                     _buildSectionTitle('بيانات الأخصائي'),
                     Card(
                       child: Padding(
@@ -124,7 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 prefixIcon: Icon(Icons.person),
                                 border: OutlineInputBorder(),
                               ),
-                              validator: (val) => val!.isEmpty ? 'مطلوب' : null,
+                              validator: (val) => val!.trim().isEmpty ? 'يرجى إدخال الاسم' : null,
                             ),
                             SizedBox(height: 15.h),
                             Row(
@@ -152,13 +159,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     
                     SizedBox(height: 20.h),
 
-                    // --- قسم المظهر ---
                     _buildSectionTitle('المظهر والتطبيق'),
                     Card(
                       child: Padding(
                         padding: EdgeInsets.all(12.w),
                         child: DropdownButtonFormField<String>(
-                          value: _selectedTheme,
+                          initialValue: _selectedTheme,
                           decoration: const InputDecoration(
                             labelText: 'نمط العرض (Theme)',
                             prefixIcon: Icon(Icons.brightness_6),
@@ -190,7 +196,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     SizedBox(height: 30.h),
                     const Divider(),
 
-                    // --- قسم عن التطبيق ---
                     _buildSectionTitle('عن التطبيق'),
                     Card(
                       child: Padding(
@@ -211,7 +216,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     SizedBox(height: 20.h),
 
-                    // --- قسم التواصل ---
                     _buildSectionTitle('تواصل معنا'),
                     Card(
                       child: Column(
@@ -219,15 +223,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ListTile(
                             leading: const Icon(Icons.email, color: Colors.blue),
                             title: const Text('البريد الإلكتروني'),
-                            subtitle: const Text('support@ot-toolbox.com'),
-                            onTap: () => _launchURL('mailto:support@ot-toolbox.com'),
+                            subtitle: const Text('mocnred0@gmail.com'),
+                            onTap: () => _launchURL('mailto:mocnred0@gmail.com'),
                           ),
                           const Divider(height: 1),
+                          // 🟢 هنا التعديل: رابط واتساب
                           ListTile(
-                            leading: const Icon(Icons.language, color: Colors.purple),
-                            title: const Text('الموقع الإلكتروني'),
-                            subtitle: const Text('www.ot-toolbox.com'),
-                            onTap: () => _launchURL('https://www.ot-toolbox.com'),
+                            leading: const Icon(Icons.chat, color: Colors.green), // أيقونة محادثة خضراء
+                            title: const Text('تواصل عبر واتساب'),
+                            subtitle: const Text('01225652485'),
+                            // رابط wa.me مع كود الدولة (مصر +20) بدون أصفار أو علامة زائد
+                            onTap: () => _launchURL('https://wa.me/201225652485'),
                           ),
                         ],
                       ),
