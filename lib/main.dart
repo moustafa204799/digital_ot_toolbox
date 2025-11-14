@@ -12,7 +12,6 @@ void main() async {
   await initializeDateFormatting('ar', null);
   await DatabaseHelper.instance.insertInitialSkills();
   
-  // Load saved theme
   final settings = await DatabaseHelper.instance.getSettings();
   if (settings != null) {
     if (settings.themeMode == 'light') {
@@ -50,7 +49,12 @@ class MyApp extends StatelessWidget {
                 brightness: Brightness.light,
                 primarySwatch: Colors.blue,
                 scaffoldBackgroundColor: Colors.grey[50],
-                textTheme: Typography.englishLike2018.apply(fontSizeFactor: 1.sp),
+                // ✅ ضبط النص ليكون أسود في الوضع الفاتح
+                textTheme: Typography.englishLike2018.apply(
+                  fontSizeFactor: 1.sp,
+                  bodyColor: Colors.black,
+                  displayColor: Colors.black,
+                ),
                 useMaterial3: true,
                 fontFamily: 'NotoSansArabic',
                 appBarTheme: const AppBarTheme(
@@ -58,7 +62,6 @@ class MyApp extends StatelessWidget {
                   foregroundColor: Colors.white,
                   elevation: 0,
                 ),
-                // ✅ Fix: Use CardThemeData instead of CardTheme
                 cardTheme: const CardThemeData(
                   color: Colors.white,
                   surfaceTintColor: Colors.white,
@@ -71,7 +74,12 @@ class MyApp extends StatelessWidget {
                 brightness: Brightness.dark,
                 primarySwatch: Colors.indigo,
                 scaffoldBackgroundColor: const Color(0xFF121212),
-                textTheme: Typography.englishLike2018.apply(fontSizeFactor: 1.sp, bodyColor: Colors.white),
+                // ✅ ضبط النص ليكون أبيض في الوضع الداكن
+                textTheme: Typography.englishLike2018.apply(
+                  fontSizeFactor: 1.sp,
+                  bodyColor: Colors.white,
+                  displayColor: Colors.white,
+                ),
                 useMaterial3: true,
                 fontFamily: 'NotoSansArabic',
                 appBarTheme: const AppBarTheme(
@@ -79,7 +87,6 @@ class MyApp extends StatelessWidget {
                   foregroundColor: Colors.white,
                   elevation: 0,
                 ),
-                // ✅ Fix: Use CardThemeData instead of CardTheme
                 cardTheme: const CardThemeData(
                   color: Color(0xFF1E1E1E),
                   surfaceTintColor: Color(0xFF1E1E1E),

@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart'; 
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -6,26 +6,23 @@ import 'dart:io';
 
 // استيراد النماذج
 import '../models/ot_settings.dart';
-import '../models/patient.dart'; 
+import '../models/patient.dart';
 
 const String databaseName = 'ot_toolbox.db';
-const int databaseVersion = 6; // 🆕 الإصدار الجديد لدعم الثيم
+const int databaseVersion = 6;
 
 class DatabaseHelper {
-  // تصميم Singleton (نقطة دخول واحدة لقاعدة البيانات)
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
   static Database? _database;
 
   DatabaseHelper._privateConstructor();
 
-  // 1. الدالة المسؤولة عن فتح قاعدة البيانات
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
     return _database!;
   }
 
-  // 2. دالة تهيئة وفتح ملف قاعدة البيانات
   _initDatabase() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String path = join(documentsDirectory.path, databaseName);
@@ -33,20 +30,26 @@ class DatabaseHelper {
     return await openDatabase(
       path,
       version: databaseVersion,
+      // تفعيل الحذف التلقائي (Cascade Delete) للعلاقات
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: _onCreate,
-      onUpgrade: _onUpgrade, 
+      onUpgrade: _onUpgrade,
     );
   }
 
-  // 3. الدالة المسؤولة عن إنشاء الجداول
+  // ==========================================
+  //            إنشاء الجداول
+  // ==========================================
   Future _onCreate(Database db, int version) async {
-     await db.execute('''
+    await db.execute('''
       CREATE TABLE OT_Settings (
         id INTEGER PRIMARY KEY,
         ot_name TEXT NOT NULL,
         clinic_logo_path TEXT,
         app_version TEXT,
-        theme_mode TEXT DEFAULT 'system' -- 🆕 عمود الثيم الجديد
+        theme_mode TEXT DEFAULT 'system'
       )
     ''');
     await db.execute('''
@@ -131,14 +134,11 @@ class DatabaseHelper {
     ''');
   }
 
-  // دالة الترقية (مهمة للمستخدمين الحاليين)
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       try {
         await db.execute("ALTER TABLE ROM_Results ADD COLUMN clinical_note TEXT");
-      } catch (e) {
-        debugPrint('Column clinical_note already exists: $e'); 
-      }
+      } catch (_) {}
     }
     if (oldVersion < 3) {
       await db.execute("DROP TABLE IF EXISTS Skills_Results");
@@ -173,13 +173,10 @@ class DatabaseHelper {
         )
       ''');
     }
-    // 🆕 الترقية للإصدار 6: إضافة عمود الثيم
     if (oldVersion < 6) {
       try {
         await db.execute("ALTER TABLE OT_Settings ADD COLUMN theme_mode TEXT DEFAULT 'system'");
-      } catch (e) {
-        debugPrint('Error adding theme_mode column: $e');
-      }
+      } catch (_) {}
     }
   }
 
@@ -190,45 +187,27 @@ class DatabaseHelper {
   Future<int> insertInitialSettings() async {
     final db = await instance.database;
     final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM OT_Settings'));
-    if (count != null && count > 0) {
-      return 0;
-    }
+    if (count != null && count > 0) return 0;
     return await db.insert('OT_Settings', {
       'ot_name': 'أخصائي العلاج الوظيفي (افتراضي)',
       'app_version': '1.0.0',
-      'theme_mode': 'system', // 🆕 القيمة الافتراضية
+      'theme_mode': 'system',
     });
   }
 
   Future<OtSettings?> getSettings() async {
     final db = await instance.database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'OT_Settings',
-      limit: 1,
-    );
-    if (maps.isNotEmpty) {
-      return OtSettings.fromMap(maps.first);
-    }
+    final List<Map<String, dynamic>> maps = await db.query('OT_Settings', limit: 1);
+    if (maps.isNotEmpty) return OtSettings.fromMap(maps.first);
     return null;
   }
   
   Future<int> updateSettings(OtSettings settings) async {
     final db = await instance.database;
-    // ✅ استخدام ID الكائن لتحديث الصف الصحيح
     if (settings.id != null) {
-      return await db.update(
-        'OT_Settings',
-        settings.toMap(),
-        where: 'id = ?',
-        whereArgs: [settings.id],
-      );
+      return await db.update('OT_Settings', settings.toMap(), where: 'id = ?', whereArgs: [settings.id]);
     } else {
-      // تحديث أول صف موجود كخيار بديل
-      return await db.update(
-        'OT_Settings',
-        settings.toMap(),
-        where: 'id = (SELECT min(id) FROM OT_Settings)',
-      );
+      return await db.update('OT_Settings', settings.toMap(), where: 'id = (SELECT min(id) FROM OT_Settings)');
     }
   }
 
@@ -243,44 +222,25 @@ class DatabaseHelper {
 
   Future<List<Patient>> getPatients() async {
     final db = await instance.database;
-    final List<Map<String, dynamic>> maps = await db.query('Patients', orderBy: 'full_name ASC');
-    return List.generate(maps.length, (i) {
-      return Patient.fromMap(maps[i]);
-    });
+    final maps = await db.query('Patients', orderBy: 'full_name ASC');
+    return List.generate(maps.length, (i) => Patient.fromMap(maps[i]));
   }
   
   Future<Patient?> getPatient(int id) async {
     final db = await instance.database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'Patients',
-      where: 'patient_id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    if (maps.isNotEmpty) {
-      return Patient.fromMap(maps.first);
-    }
+    final maps = await db.query('Patients', where: 'patient_id = ?', whereArgs: [id], limit: 1);
+    if (maps.isNotEmpty) return Patient.fromMap(maps.first);
     return null;
   }
 
   Future<int> updatePatient(Patient patient) async {
     final db = await instance.database;
-    return await db.update(
-      'Patients',
-      patient.toMap(),
-      where: 'patient_id = ?',
-      whereArgs: [patient.patientId],
-    );
+    return await db.update('Patients', patient.toMap(), where: 'patient_id = ?', whereArgs: [patient.patientId]);
   }
 
   Future<int> deletePatient(int patientId) async {
     final db = await instance.database;
-    // ON DELETE CASCADE سيحذف البيانات المرتبطة تلقائياً
-    return await db.delete(
-      'Patients',
-      where: 'patient_id = ?',
-      whereArgs: [patientId],
-    );
+    return await db.delete('Patients', where: 'patient_id = ?', whereArgs: [patientId]);
   }
 
   // ==========================================
@@ -294,21 +254,12 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getAppointmentsForPatient(int patientId) async {
     final db = await instance.database;
-    return await db.query(
-      'Scheduled_Appointments',
-      where: 'patient_id = ?',
-      whereArgs: [patientId],
-      orderBy: 'appointment_date ASC',
-    );
+    return await db.query('Scheduled_Appointments', where: 'patient_id = ?', whereArgs: [patientId], orderBy: 'appointment_date ASC');
   }
 
   Future<int> deleteAppointment(int appointmentId) async {
     final db = await instance.database;
-    return await db.delete(
-      'Scheduled_Appointments',
-      where: 'appointment_id = ?',
-      whereArgs: [appointmentId],
-    );
+    return await db.delete('Scheduled_Appointments', where: 'appointment_id = ?', whereArgs: [appointmentId]);
   }
 
   // ==========================================
@@ -353,9 +304,7 @@ class DatabaseHelper {
       LIMIT 1
     ''');
     
-    if (assessmentMaps.isNotEmpty) {
-      return Patient.fromMap(assessmentMaps.first);
-    }
+    if (assessmentMaps.isNotEmpty) return Patient.fromMap(assessmentMaps.first);
     
     final List<Map<String, dynamic>> patientMaps = await db.query(
       'Patients',
@@ -363,9 +312,7 @@ class DatabaseHelper {
       limit: 1,
     );
     
-    if (patientMaps.isNotEmpty) {
-      return Patient.fromMap(patientMaps.first);
-    }
+    if (patientMaps.isNotEmpty) return Patient.fromMap(patientMaps.first);
     return null;
   }
   
@@ -401,7 +348,7 @@ class DatabaseHelper {
   }
 
   // ==========================================
-  //         وظائف Skills
+  //         وظائف Skills (إدخال البيانات الأساسية)
   // ==========================================
   
   Future<void> insertInitialSkills() async {
@@ -410,6 +357,7 @@ class DatabaseHelper {
     final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM Skills_Master'));
     if (count != null && count > 0) return; 
     
+    // القائمة الكاملة للمهارات
     final List<Map<String, dynamic>> initialSkills = [
       {'skill_group': 'مهارات دقيقة وبناء', 'skill_description': 'مدّ اليد والإمساك بالأشياء لوضعها في الفم', 'min_age_months': 6},
       {'skill_group': 'مهارات دقيقة وبناء', 'skill_description': 'التحكم في ترك الأشياء بإرادة', 'min_age_months': 6},
@@ -508,23 +456,46 @@ class DatabaseHelper {
     );
   }
 
+  // ==========================================
+  //   وظائف الحفظ والتعديل (Save & Update)
+  // ==========================================
+
+  // 1. Skills
   Future<int> saveSkillsAssessment({
     required int patientId,
     required String status,
-    required List<Map<String, dynamic>> results,
+    required List<Map<String, dynamic>> results, 
+    int? existingAssessmentId, // تم إضافة هذا المعامل لدعم التعديل
   }) async {
     final db = await instance.database;
     final now = DateTime.now().toIso8601String();
     int assessmentId = 0;
     
     await db.transaction((txn) async {
-      assessmentId = await txn.insert('Assessments', {
-        'patient_id': patientId,
-        'assessment_type': 'Skills',
-        'status': status,
-        'date_created': now,
-        'date_completed': status == 'Completed' ? now : null,
-      });
+      if (existingAssessmentId != null) {
+        // حالة التعديل: تحديث السجل الرئيسي وحذف النتائج القديمة
+        assessmentId = existingAssessmentId;
+        await txn.update(
+          'Assessments', 
+          {
+            'status': status,
+            'date_completed': status == 'Completed' ? now : null,
+          },
+          where: 'assessment_id = ?',
+          whereArgs: [assessmentId]
+        );
+        // حذف التفاصيل القديمة لإعادة إدخالها
+        await txn.delete('Skills_Results', where: 'assessment_id = ?', whereArgs: [assessmentId]);
+      } else {
+        // حالة الإدخال الجديد
+        assessmentId = await txn.insert('Assessments', {
+          'patient_id': patientId,
+          'assessment_type': 'Skills',
+          'status': status,
+          'date_created': now,
+          'date_completed': status == 'Completed' ? now : null,
+        });
+      }
 
       final Batch batch = txn.batch();
       for (var result in results) {
@@ -540,26 +511,41 @@ class DatabaseHelper {
     return assessmentId;
   }
 
-  // ==========================================
-  //         وظائف ROM
-  // ==========================================
+  // 2. ROM
   Future<int> saveROMAssessment({
     required int patientId,
     required String status,
-    required List<Map<String, dynamic>> results,
+    required List<Map<String, dynamic>> results, 
+    int? existingAssessmentId, // تم إضافة هذا المعامل لدعم التعديل
   }) async {
     final db = await instance.database;
     final now = DateTime.now().toIso8601String();
     int assessmentId = 0;
 
     await db.transaction((txn) async {
-      assessmentId = await txn.insert('Assessments', {
-        'patient_id': patientId,
-        'assessment_type': 'ROM',
-        'status': status,
-        'date_created': now,
-        'date_completed': status == 'Completed' ? now : null,
-      });
+      if (existingAssessmentId != null) {
+        // تعديل
+        assessmentId = existingAssessmentId;
+        await txn.update(
+          'Assessments', 
+          {
+            'status': status,
+            'date_completed': status == 'Completed' ? now : null,
+          },
+          where: 'assessment_id = ?',
+          whereArgs: [assessmentId]
+        );
+        await txn.delete('ROM_Results', where: 'assessment_id = ?', whereArgs: [assessmentId]);
+      } else {
+        // جديد
+        assessmentId = await txn.insert('Assessments', {
+          'patient_id': patientId,
+          'assessment_type': 'ROM',
+          'status': status,
+          'date_created': now,
+          'date_completed': status == 'Completed' ? now : null,
+        });
+      }
 
       final Batch batch = txn.batch();
       for (var result in results) {
@@ -578,26 +564,41 @@ class DatabaseHelper {
     return assessmentId;
   }
 
-  // ==========================================
-  //         وظائف Grip Assessment
-  // ==========================================
+  // 3. Grip
   Future<int> saveGripAssessment({
     required int patientId,
     required String status,
     required List<Map<String, dynamic>> results, 
+    int? existingAssessmentId, // تم إضافة هذا المعامل لدعم التعديل
   }) async {
     final db = await instance.database;
     final now = DateTime.now().toIso8601String();
     int assessmentId = 0;
 
     await db.transaction((txn) async {
-      assessmentId = await txn.insert('Assessments', {
-        'patient_id': patientId,
-        'assessment_type': 'Grip',
-        'status': status,
-        'date_created': now,
-        'date_completed': status == 'Completed' ? now : null,
-      });
+      if (existingAssessmentId != null) {
+        // تعديل
+        assessmentId = existingAssessmentId;
+        await txn.update(
+          'Assessments', 
+          {
+            'status': status,
+            'date_completed': status == 'Completed' ? now : null,
+          },
+          where: 'assessment_id = ?',
+          whereArgs: [assessmentId]
+        );
+        await txn.delete('Grip_Assessment_Results', where: 'assessment_id = ?', whereArgs: [assessmentId]);
+      } else {
+        // جديد
+        assessmentId = await txn.insert('Assessments', {
+          'patient_id': patientId,
+          'assessment_type': 'Grip',
+          'status': status,
+          'date_created': now,
+          'date_completed': status == 'Completed' ? now : null,
+        });
+      }
 
       final Batch batch = txn.batch();
       for (var handResult in results) {
@@ -618,7 +619,7 @@ class DatabaseHelper {
   }
   
   // ==========================================
-  //         وظائف التقارير (Reports)
+  //         وظائف التقارير (Reports & Fetching)
   // ==========================================
 
   Future<Map<String, dynamic>?> getAssessmentDetails(int assessmentId) async {
@@ -629,9 +630,7 @@ class DatabaseHelper {
       whereArgs: [assessmentId],
       limit: 1,
     );
-    if (maps.isNotEmpty) {
-      return maps.first;
-    }
+    if (maps.isNotEmpty) return maps.first;
     return null;
   }
 
@@ -653,6 +652,7 @@ class DatabaseHelper {
     );
   }
 
+  // هذه الدالة تجلب النتائج المفلترة للتقرير (تستبعد "يستطيع")
   Future<List<Map<String, dynamic>>> getSkillsResultsForReport(int assessmentId) async {
     final db = await instance.database;
     return await db.rawQuery('''
@@ -660,12 +660,29 @@ class DatabaseHelper {
         T1.score, 
         T1.clinical_note,
         T2.skill_group,
-        T2.skill_description
+        T2.skill_description,
+        T1.skill_id
       FROM Skills_Results T1
       INNER JOIN Skills_Master T2 ON T1.skill_id = T2.skill_id
       WHERE T1.assessment_id = ? 
       AND T1.score IS NOT NULL AND T1.score != 'يستطيع' 
       ORDER BY T2.skill_group ASC, T2.min_age_months ASC
+    ''', [assessmentId]);
+  }
+
+  // 🆕 دالة جديدة لجلب كل المهارات (لغرض التعديل - بدون فلترة)
+  Future<List<Map<String, dynamic>>> getAllSkillsResultsForEdit(int assessmentId) async {
+    final db = await instance.database;
+    return await db.rawQuery('''
+      SELECT 
+        T1.score, 
+        T1.clinical_note,
+        T1.skill_id,
+        T2.skill_group,
+        T2.skill_description
+      FROM Skills_Results T1
+      INNER JOIN Skills_Master T2 ON T1.skill_id = T2.skill_id
+      WHERE T1.assessment_id = ?
     ''', [assessmentId]);
   }
 
@@ -680,7 +697,7 @@ class DatabaseHelper {
   }
 
   // ==========================================
-  //         وظائف الحذف
+  //         وظائف الحذف والملخص
   // ==========================================
 
   Future<int> deleteAssessment(int assessmentId) async {
@@ -691,10 +708,6 @@ class DatabaseHelper {
       whereArgs: [assessmentId],
     );
   }
-
-  // ==========================================
-  //         وظائف الملخص
-  // ==========================================
 
   Future<Map<String, int?>> getLatestAssessmentIds(int patientId) async {
     final db = await instance.database;

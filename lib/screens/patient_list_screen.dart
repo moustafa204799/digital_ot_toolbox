@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../database/database_helper.dart';
 import '../models/patient.dart';
-import 'add_patient_screen.dart'; 
-import 'patient_profile_screen.dart'; 
+import 'patient_profile_screen.dart';
+import 'add_patient_screen.dart';
 
 class PatientListScreen extends StatefulWidget {
   const PatientListScreen({super.key});
@@ -12,219 +13,185 @@ class PatientListScreen extends StatefulWidget {
 }
 
 class _PatientListScreenState extends State<PatientListScreen> {
-  late Future<List<Patient>> _patientsFuture;
-  List<Patient> _allPatients = [];
+  List<Patient> _patients = [];
   List<Patient> _filteredPatients = [];
+  bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _patientsFuture = _loadPatients();
+    _loadPatients();
     _searchController.addListener(_filterPatients);
   }
 
-  Future<List<Patient>> _loadPatients() async {
-    final patients = await DatabaseHelper.instance.getPatients();
-    setState(() {
-      _allPatients = patients;
-      _filteredPatients = patients; 
-    });
-    return patients;
+  // تحميل قائمة المرضى من قاعدة البيانات
+  void _loadPatients() async {
+    final list = await DatabaseHelper.instance.getPatients();
+    if (mounted) {
+      setState(() {
+        _patients = list;
+        _filteredPatients = list; // في البداية، القائمة المصفاة هي نفس القائمة الأصلية
+        _isLoading = false;
+      });
+    }
   }
 
+  // تصفية القائمة بناءً على نص البحث
   void _filterPatients() {
     final query = _searchController.text.toLowerCase();
-    setState(() {
-      if (query.isEmpty) {
-        _filteredPatients = _allPatients;
-      } else {
-        _filteredPatients = _allPatients.where((patient) {
-          return patient.fullName.toLowerCase().contains(query) ||
-                 (patient.diagnosis?.toLowerCase().contains(query) ?? false);
+    if (query.isEmpty) {
+      setState(() => _filteredPatients = _patients);
+    } else {
+      setState(() {
+        _filteredPatients = _patients.where((p) {
+          return p.fullName.toLowerCase().contains(query);
         }).toList();
-      }
-    });
-  }
-  
-  void _navigateToAddPatient() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const AddPatientScreen()),
-    );
-    setState(() {
-      _patientsFuture = _loadPatients(); 
-    });
+      });
+    }
   }
 
-  void _navigateToPatientProfile(Patient patient) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => PatientProfileScreen(patient: patient)),
-    );
-  }
-
-  // 🆕 (جديد) دالة لحذف المريض مع تأكيد
-  void _deletePatient(Patient patient) {
-    showDialog(
-      context: context,
-      builder: (BuildContext ctx) {
-        return AlertDialog(
-          title: const Text('تأكيد الحذف'),
-          content: Text('هل أنت متأكد من رغبتك في حذف ملف المريض: ${patient.fullName}؟\n\nسيتم حذف جميع تقييماته ومواعيده بشكل نهائي.'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('إلغاء'),
-              onPressed: () {
-                Navigator.of(ctx).pop();
-              },
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('حذف'),
-              onPressed: () async {
-                await DatabaseHelper.instance.deletePatient(patient.patientId!);
-                if (mounted) {
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('تم حذف ملف: ${patient.fullName}')),
-                  );
-                }
-                // تحديث القائمة
-                setState(() {
-                  _patientsFuture = _loadPatients();
-                });
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  // حذف مريض وتحديث القائمة
+  Future<void> _deletePatient(int id) async {
+    await DatabaseHelper.instance.deletePatient(id);
+    _loadPatients(); // إعادة التحميل
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حذف المريض وجميع بياناته بنجاح')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('📋 قائمة المرضى'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add),
-            onPressed: _navigateToAddPatient,
-            tooltip: 'إضافة مريض جديد',
-          ),
-        ],
+        title: Text('قائمة المرضى', style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold)),
       ),
       body: Column(
         children: [
+          // --- شريط البحث ---
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: EdgeInsets.all(12.w),
             child: TextField(
               controller: _searchController,
-              decoration: const InputDecoration(
-                labelText: 'بحث سريع بالاسم أو التشخيص',
-                prefixIcon: Icon(Icons.search),
+              decoration: InputDecoration(
+                labelText: 'بحث عن مريض...',
+                hintText: 'اكتب اسم المريض',
+                prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(25.0)),
+                  borderRadius: BorderRadius.circular(10.r),
                 ),
+                contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 12.w),
               ),
             ),
           ),
           
+          // --- قائمة المرضى ---
           Expanded(
-            child: FutureBuilder<List<Patient>>(
-              future: _patientsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('حدث خطأ: ${snapshot.error}'));
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'لا يوجد مرضى حتى الآن. ابدأ بإضافة مريض جديد!',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                  );
-                }
-                
-                return ListView.builder(
-                  itemCount: _filteredPatients.length,
-                  itemBuilder: (context, index) {
-                    final patient = _filteredPatients[index];
-                    return PatientCard(
-                      patient: patient,
-                      onTap: () => _navigateToPatientProfile(patient),
-                      // 🆕 (جديد) تمرير دالة الحذف
-                      onDelete: () => _deletePatient(patient),
-                    );
-                  },
-                );
-              },
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredPatients.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.person_search, size: 60.w, color: Colors.grey),
+                            SizedBox(height: 10.h),
+                            Text(
+                              'لا يوجد مرضى مطابقين', 
+                              style: TextStyle(fontSize: 16.sp, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: EdgeInsets.only(bottom: 80.h), // مساحة للزر العائم
+                        itemCount: _filteredPatients.length,
+                        itemBuilder: (context, index) {
+                          final patient = _filteredPatients[index];
+                          return Card(
+                            margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                radius: 24.r,
+                                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                                child: Text(
+                                  patient.fullName.isNotEmpty ? patient.fullName[0].toUpperCase() : '?',
+                                  style: TextStyle(
+                                    color: Theme.of(context).primaryColor, 
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18.sp,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                patient.fullName, 
+                                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                'العمر: ${patient.calculateAge()}', 
+                                style: TextStyle(fontSize: 14.sp),
+                              ),
+                              trailing: IconButton(
+                                icon: Icon(Icons.delete_outline, color: Colors.red, size: 24.w),
+                                onPressed: () => _showDeleteConfirmation(patient),
+                              ),
+                              onTap: () {
+                                // الانتقال إلى ملف المريض
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PatientProfileScreen(patient: patient),
+                                  ),
+                                ).then((_) => _loadPatients()); // تحديث عند العودة (قد يكون تم تعديل البيانات)
+                              },
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToAddPatient,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddPatientScreen()),
+          ).then((_) => _loadPatients());
+        },
         child: const Icon(Icons.add),
       ),
     );
   }
-}
 
-// ----------------------------------
-// (✅ معدلة) بطاقة عرض المريض 
-// ----------------------------------
-class PatientCard extends StatelessWidget {
-  final Patient patient;
-  final VoidCallback onTap;
-  final VoidCallback onDelete; // 🆕 (جديد)
-
-  const PatientCard({
-    super.key, 
-    required this.patient, 
-    required this.onTap,
-    required this.onDelete, // 🆕 (جديد)
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: ListTile(
-        onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).primaryColor,
-          child: Text(
-            patient.fullName.isNotEmpty ? patient.fullName[0].toUpperCase() : '?',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+  // نافذة تأكيد الحذف
+  void _showDeleteConfirmation(Patient patient) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد الحذف'),
+        content: Text('هل أنت متأكد من رغبتك في حذف ملف "${patient.fullName}"؟\nسيتم حذف جميع التقييمات والتقارير المرتبطة به نهائياً.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text('إلغاء'),
           ),
-        ),
-        title: Text(
-          patient.fullName,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('التشخيص: ${patient.diagnosis ?? 'لا يوجد'}'),
-            Text('العمر: ${patient.calculateAge()}'), 
-          ],
-        ),
-        // 🆕 (تعديل) إضافة زر الحذف
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
-          onPressed: onDelete,
-          tooltip: 'حذف ملف المريض',
-        ),
+          TextButton(
+            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deletePatient(patient.patientId!);
+            },
+          ),
+        ],
       ),
     );
+  }
+  
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }

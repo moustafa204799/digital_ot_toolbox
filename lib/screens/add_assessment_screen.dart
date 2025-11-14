@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart'; // 🆕
 import '../models/patient.dart'; 
-// استيراد الشاشات الفعلية التي أنشأناها
 import 'rom_assessment_screen.dart'; 
 import 'grip_assessment_screen.dart'; 
 import 'skills_assessment_screen.dart'; 
@@ -11,41 +11,49 @@ class AddAssessmentScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // التحقق من الوضع الداكن
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? Colors.grey[800] : Colors.blue.shade50;
+    final iconColor = isDark ? Colors.blue.shade200 : Colors.blue;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('بدء تقييم لـ: ${patient.fullName}'),
+        title: Text('بدء تقييم جديد', style: TextStyle(fontSize: 20.sp)),
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.w), // 🆕
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // بيانات المريض الأساسية كبطاقة سريعة
+            // بيانات المريض
             Card(
               elevation: 2,
-              color: Colors.blue.shade50,
-              margin: const EdgeInsets.only(bottom: 20),
+              color: cardColor, // 🆕 لون متجاوب
+              margin: EdgeInsets.only(bottom: 20.h),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
               child: ListTile(
-                leading: const Icon(Icons.person, color: Colors.blue),
-                title: Text(patient.fullName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('العمر: ${patient.calculateAge()} | التشخيص: ${patient.diagnosis ?? 'لا يوجد'}'),
+                leading: Icon(Icons.person, color: iconColor, size: 32.w),
+                title: Text(patient.fullName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18.sp)),
+                subtitle: Text(
+                  'العمر: ${patient.calculateAge()} | التشخيص: ${patient.diagnosis ?? 'لا يوجد'}',
+                  style: TextStyle(fontSize: 14.sp),
+                ),
               ),
             ),
             
-            const Text(
-              'اختر نوع التقييم الذي تريد البدء به:',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Text(
+              'اختر نوع التقييم:',
+              style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600),
             ),
-            const Divider(thickness: 2),
+            Divider(thickness: 2, height: 20.h),
 
-            // 1. تقييم مدى الحركة (ROM)
+            // 1. ROM
             _buildAssessmentOption(
               context,
               icon: Icons.accessibility_new,
               title: 'تقييم مدى الحركة (ROM)',
               subtitle: 'قياس الزوايا والمجالات الحركية للمفاصل.',
-              // الانتقال إلى شاشة ROM
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => ROMAssessmentScreen(patient: patient)),
@@ -53,13 +61,12 @@ class AddAssessmentScreen extends StatelessWidget {
               },
             ),
 
-            // 2. تقييم قوة القبضة (Grip Strength)
+            // 2. Grip
             _buildAssessmentOption(
               context,
               icon: Icons.fitness_center,
               title: 'تقييم قوة القبضة',
-              subtitle: 'التقييم النوعي للقبضات (قوية، خطافية، كروية...).',
-              // الانتقال إلى شاشة Grip
+              subtitle: 'التقييم النوعي للقبضات (قوية، خطافية...).',
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => GripAssessmentScreen(patient: patient)),
@@ -67,13 +74,12 @@ class AddAssessmentScreen extends StatelessWidget {
               },
             ),
 
-            // 3. تقييم المهارات الدقيقة (Fine Motor Skills)
+            // 3. Skills
             _buildAssessmentOption(
               context,
               icon: Icons.gesture,
               title: 'تقييم المهارات الدقيقة',
-              subtitle: 'تقييم مهارات الإمساك، الكتابة، والتآزر البصري الحركي.',
-              // الانتقال إلى شاشة Skills
+              subtitle: 'تقييم مهارات الإمساك، الكتابة، والتآزر.',
               onTap: () {
                  Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => SkillsAssessmentScreen(patient: patient)),
@@ -86,7 +92,6 @@ class AddAssessmentScreen extends StatelessWidget {
     );
   }
 
-  // ويدجت مساعدة لبناء خيار التقييم
   Widget _buildAssessmentOption(
     BuildContext context, {
     required IconData icon,
@@ -96,12 +101,21 @@ class AddAssessmentScreen extends StatelessWidget {
   }) {
     return Card(
       elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: EdgeInsets.symmetric(vertical: 8.h),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
       child: ListTile(
-        leading: Icon(icon, size: 40, color: Theme.of(context).primaryColor),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.arrow_forward),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+          radius: 25.r,
+          child: Icon(icon, size: 28.w, color: Theme.of(context).primaryColor),
+        ),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.sp)),
+        subtitle: Padding(
+          padding: EdgeInsets.only(top: 4.h),
+          child: Text(subtitle, style: TextStyle(fontSize: 12.sp)),
+        ),
+        trailing: Icon(Icons.arrow_forward_ios, size: 16.w),
         onTap: onTap,
       ),
     );

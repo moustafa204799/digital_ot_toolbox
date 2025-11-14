@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart'; // 🆕
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../database/database_helper.dart';
 import '../models/patient.dart';
 import 'add_patient_screen.dart';
@@ -43,13 +43,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // استخدام ScreenUtil لضبط الأحجام
     return Scaffold(
       appBar: AppBar(
-        title: Text('لوحة التحكم', style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold)), // .sp للخطوط
+        title: Text(
+          'لوحة التحكم',
+          style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
-            icon: Icon(Icons.settings, size: 28.w), // .w للأيقونات
+            icon: Icon(Icons.settings, size: 28.w),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -61,13 +63,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.all(16.w), // .w للمسافات الأفقية والـ padding
+              padding: EdgeInsets.all(16.w),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // بطاقة الترحيب والإحصائيات
+                  // بطاقة الترحيب والإحصائيات (مع دعم الوضع الداكن)
                   _buildSummaryCard(),
-                  SizedBox(height: 20.h), // .h للمسافات الرأسية
+                  SizedBox(height: 20.h),
                   
                   // قسم المواعيد
                   Text(
@@ -116,11 +118,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ✅ التعديل: جعل ألوان البطاقة والنصوص متغيرة حسب الثيم
   Widget _buildSummaryCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // ألوان متكيفة
+    final cardColor = isDark ? Colors.grey[800] : Colors.blue.shade50;
+    final textColor = isDark ? Colors.white : Colors.blue.shade900;
+    final labelColor = isDark ? Colors.grey[300] : Colors.grey.shade700;
+    final dividerColor = isDark ? Colors.grey[600] : Colors.grey.shade300;
+
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r)), // .r لنصف القطر
-      color: Colors.blue.shade50,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r)),
+      color: cardColor, 
       child: Padding(
         padding: EdgeInsets.all(20.w),
         child: Column(
@@ -128,12 +139,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildStatItem('إجمالي المرضى', '$_totalPatients', Icons.groups),
-                Container(height: 40.h, width: 1, color: Colors.grey.shade300),
+                _buildStatItem(
+                  'إجمالي المرضى', 
+                  '$_totalPatients', 
+                  Icons.groups, 
+                  textColor, 
+                  labelColor!
+                ),
+                Container(height: 40.h, width: 1, color: dividerColor),
                 _buildStatItem(
                   'آخر نشاط', 
                   _lastPatient != null ? _lastPatient!.fullName.split(' ').first : '-', 
-                  Icons.history
+                  Icons.history,
+                  textColor,
+                  labelColor
                 ),
               ],
             ),
@@ -143,13 +162,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
+  Widget _buildStatItem(String label, String value, IconData icon, Color textColor, Color labelColor) {
     return Column(
       children: [
         Icon(icon, size: 30.w, color: Colors.blue),
         SizedBox(height: 8.h),
-        Text(value, style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-        Text(label, style: TextStyle(fontSize: 14.sp, color: Colors.grey.shade700)),
+        Text(
+          value, 
+          style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: textColor),
+        ),
+        Text(
+          label, 
+          style: TextStyle(fontSize: 14.sp, color: labelColor),
+        ),
       ],
     );
   }
@@ -160,7 +185,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Padding(
           padding: EdgeInsets.all(16.w),
           child: Center(
-            child: Text('لا توجد مواعيد مسجلة لليوم.', style: TextStyle(fontSize: 16.sp, color: Colors.grey)),
+            child: Text(
+              'لا توجد مواعيد مسجلة لليوم.', 
+              style: TextStyle(fontSize: 16.sp, color: Colors.grey),
+            ),
           ),
         ),
       );
@@ -172,8 +200,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       itemCount: _scheduledAppointments.length,
       itemBuilder: (context, index) {
         final appt = _scheduledAppointments[index];
-        // تقليم الوقت فقط للعرض
         final time = DateTime.parse(appt['appointment_date']).toString().substring(11, 16);
+        
         return Card(
           margin: EdgeInsets.only(bottom: 8.h),
           child: ListTile(
@@ -181,10 +209,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               backgroundColor: Colors.orange.shade100,
               child: Icon(Icons.access_time, color: Colors.orange, size: 20.w),
             ),
-            title: Text(appt['full_name'], style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
-            subtitle: Text('الساعة: $time', style: TextStyle(fontSize: 14.sp)),
+            title: Text(
+              appt['full_name'], 
+              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              'الساعة: $time', 
+              style: TextStyle(fontSize: 14.sp),
+            ),
             trailing: Icon(Icons.arrow_forward_ios, size: 16.w, color: Colors.grey),
-            // يمكن إضافة الانتقال لملف المريض هنا مستقبلاً
           ),
         );
       },
@@ -203,7 +236,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Icon(icon, size: 32.w, color: Colors.white),
           SizedBox(height: 8.h),
-          Text(label, style: TextStyle(fontSize: 16.sp, color: Colors.white, fontWeight: FontWeight.bold)),
+          Text(
+            label, 
+            style: TextStyle(fontSize: 16.sp, color: Colors.white, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );

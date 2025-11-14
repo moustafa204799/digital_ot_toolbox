@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../database/database_helper.dart';
 import '../models/patient.dart';
 import 'report_generation_screen.dart'; 
 
 class SkillsAssessmentScreen extends StatefulWidget {
   final Patient patient;
-  const SkillsAssessmentScreen({super.key, required this.patient});
+  final int? assessmentId;
+
+  const SkillsAssessmentScreen({super.key, required this.patient, this.assessmentId});
 
   @override
   State<SkillsAssessmentScreen> createState() => _SkillsAssessmentScreenState();
@@ -13,138 +16,114 @@ class SkillsAssessmentScreen extends StatefulWidget {
 
 class _SkillsAssessmentScreenState extends State<SkillsAssessmentScreen> {
   Future<List<Map<String, dynamic>>>? _skillsFuture;
-  
   final Map<int, String?> _skillScores = {}; 
   final Map<String, String?> _clinicalNotes = {};
   Map<String, List<Map<String, dynamic>>> _groupedSkillsCache = {};
 
   int get _patientAgeInMonths {
     final birthDate = DateTime.parse(widget.patient.dob);
-    final today = DateTime.now();
-    return (today.difference(birthDate).inDays / 30).round();
+    return (DateTime.now().difference(birthDate).inDays / 30).round();
   }
 
   @override
   void initState() {
     super.initState();
     _skillsFuture = DatabaseHelper.instance.getSkillsByAge(_patientAgeInMonths);
+    
+    // 🆕 تحميل البيانات إذا كانت مسودة
+    if (widget.assessmentId != null) {
+      _loadDraftData();
+    }
   }
 
-  // ----------------------------------------------------
-  // دالة الحفظ (كما هي)
-  // ----------------------------------------------------
+  Future<void> _loadDraftData() async {
+    // ننتظر حتى يتم تحميل المهارات الأساسية أولاً
+    await _skillsFuture;
+    
+    // جلب النتائج المحفوظة (شاملة الكل)
+    final results = await DatabaseHelper.instance.getAllSkillsResultsForEdit(widget.assessmentId!);
+    
+    if (mounted) {
+      setState(() {
+        for (var row in results) {
+          if (row['skill_id'] != null) {
+             _skillScores[row['skill_id']] = row['score'];
+             String group = row['skill_group'];
+             if (row['clinical_note'] != null) {
+               _clinicalNotes[group] = row['clinical_note'];
+             }
+          }
+        }
+      });
+    }
+  }
+
   Future<void> _saveAssessment(String status) async {
     List<Map<String, dynamic>> resultsToSave = [];
-    
     _skillScores.forEach((skillId, score) {
       if (score != null) {
         String groupName = _findGroupNameBySkillId(skillId);
         resultsToSave.add({
-          'skill_id': skillId,
-          'score': score, 
-          'clinical_note': _clinicalNotes[groupName],
+          'skill_id': skillId, 'score': score, 'clinical_note': _clinicalNotes[groupName],
         });
       }
     });
 
     if (resultsToSave.isEmpty && status == 'Completed') {
-       if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('الرجاء تقييم مهارة واحدة على الأقل قبل الإنهاء.')),
-          );
-       }
+       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء تقييم مهارة واحدة على الأقل.')));
        return;
     }
 
     try {
-      final int assessmentId = await DatabaseHelper.instance.saveSkillsAssessment(
-        patientId: widget.patient.patientId!,
+      final int id = await DatabaseHelper.instance.saveSkillsAssessment(
+        patientId: widget.patient.patientId!, 
         status: status, 
         results: resultsToSave,
+        existingAssessmentId: widget.assessmentId, // 🆕
       );
+      if (!mounted) return;
       
       if (status == 'Completed') {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text('✅ تم حفظ التقييم! جارٍ إعداد التقرير...')),
-          );
-          Navigator.of(context).pushReplacement( 
-            MaterialPageRoute(
-              builder: (context) => ReportGenerationScreen(
-                assessmentId: assessmentId,
-                patient: widget.patient,
-                cameFromAssessmentFlow: true,
-              ),
-            ),
-          );
-        }
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (_) => ReportGenerationScreen(assessmentId: id, patient: widget.patient, cameFromAssessmentFlow: true),
+        ));
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('🕓 تم حفظ التقييم كمسودة.')),
-          );
-          Navigator.of(context).pop(); 
-          Navigator.of(context).pop();
-        }
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🕓 تم حفظ المسودة.')));
+        Navigator.of(context)..pop()..pop();
       }
-      
     } catch (e) {
-      if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل الحفظ: $e')),
-        );
-      }
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
     }
   }
 
   String _findGroupNameBySkillId(int skillId) {
     for (var entry in _groupedSkillsCache.entries) {
-      if (entry.value.any((skill) => skill['skill_id'] == skillId)) {
-        return entry.key;
-      }
+      if (entry.value.any((skill) => skill['skill_id'] == skillId)) return entry.key;
     }
     return '';
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('تقييم المهارات الدقيقة لـ: ${widget.patient.fullName}'),
-      ),
+      appBar: AppBar(title: Text('تقييم المهارات', style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold))),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _skillsFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('خطأ: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('لا توجد مهارات متاحة لعمر هذا المريض.'));
-          }
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.data!.isEmpty) return Center(child: Text('لا توجد مهارات لعمر هذا المريض', style: TextStyle(fontSize: 16.sp)));
 
           final skills = snapshot.data!;
-          // 🆕 (✅ تعديل) دالة التجميع ستعمل الآن حسب "نوع المهارة"
           _groupedSkillsCache = _groupSkills(skills); 
 
           return Column(
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: _groupedSkillsCache.entries.map((entry) {
-                      final groupName = entry.key;
-                      final groupSkills = entry.value;
-                      return _buildSkillGroup(groupName, groupSkills);
-                    }).toList(),
-                  ),
+                child: ListView(
+                  padding: EdgeInsets.all(16.w),
+                  children: _groupedSkillsCache.entries.map((entry) => _buildSkillGroup(entry.key, entry.value)).toList(),
                 ),
               ),
-              
               _buildSaveButtons(),
             ],
           );
@@ -153,85 +132,69 @@ class _SkillsAssessmentScreenState extends State<SkillsAssessmentScreen> {
     );
   }
 
-  // 🆕 (تعديل) هذه الدالة الآن ستقوم بالتجميع حسب "نوع المهارة"
   Map<String, List<Map<String, dynamic>>> _groupSkills(List<Map<String, dynamic>> skills) {
     Map<String, List<Map<String, dynamic>>> grouped = {};
     for (var skill in skills) {
       final group = skill['skill_group'] as String;
-      if (!grouped.containsKey(group)) {
-        grouped[group] = [];
-      }
+      if (!grouped.containsKey(group)) grouped[group] = [];
       grouped[group]!.add(skill);
     }
     return grouped;
   }
 
-  // 🆕 (تعديل) هذا هو التصميم الجديد الأنظف
   Widget _buildSkillGroup(String groupName, List<Map<String, dynamic>> groupSkills) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final titleColor = isDark ? Colors.blueAccent : Colors.blue.shade800;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 3,
+      margin: EdgeInsets.only(bottom: 12.h),
+      elevation: 2,
+      color: Theme.of(context).cardTheme.color,
       child: ExpansionTile(
         title: Text(
-          groupName, // (مثل: "مهارات ما قبل الكتابة")
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
+          groupName, 
+          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold, color: titleColor),
         ),
-        subtitle: Text('لديك ${groupSkills.length} مهارة في هذه المجموعة'),
         children: [
+          ...groupSkills.map((skill) {
+            final skillId = skill['skill_id'] as int;
+            return ListTile(
+              title: Text(
+                skill['skill_description'], 
+                style: TextStyle(fontSize: 14.sp, color: textColor)
+              ),
+              subtitle: Text(
+                'العمر: ${skill['min_age_months']} شهر', 
+                style: TextStyle(fontSize: 12.sp, color: Colors.grey)
+              ),
+              trailing: DropdownButton<String>(
+                value: _skillScores[skillId],
+                hint: Text('التقييم', style: TextStyle(fontSize: 12.sp, color: textColor)),
+                dropdownColor: isDark ? Colors.grey[800] : Colors.white,
+                underline: Container(),
+                items: [
+                  DropdownMenuItem(value: 'يستطيع', child: Text('✅ يستطيع', style: TextStyle(color: isDark ? Colors.white : Colors.black))),
+                  DropdownMenuItem(value: 'بمساعدة', child: Text('🤝 بمساعدة', style: TextStyle(color: isDark ? Colors.white : Colors.black))),
+                  DropdownMenuItem(value: 'لا يستطيع', child: Text('❌ لا يستطيع', style: TextStyle(color: isDark ? Colors.white : Colors.black))),
+                ],
+                onChanged: (v) => setState(() => _skillScores[skillId] = v),
+              ),
+            );
+          }),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-            child: Column(
-              children: [
-                const Divider(thickness: 1),
-                
-                ...groupSkills.map((skill) {
-                  final skillId = skill['skill_id'] as int;
-                  return ListTile(
-                    title: Text(skill['skill_description']),
-                    // 🆕 (تعديل) عرض العمر بجانب المهارة
-                    subtitle: Text('العمر المناسب: ${skill['min_age_months']} شهر'),
-                    
-                    trailing: DropdownButton<String>(
-                      value: _skillScores[skillId],
-                      hint: const Text('التقييم'),
-                      items: const [
-                        DropdownMenuItem(value: 'يستطيع', child: Text('يستطيع ✅', style: TextStyle(color: Colors.green))),
-                        DropdownMenuItem(value: 'بمساعدة', child: Text('بمساعدة 🤝', style: TextStyle(color: Colors.orange))),
-                        DropdownMenuItem(value: 'لا يستطيع', child: Text('لا يستطيع ❌', style: TextStyle(color: Colors.red))),
-                      ],
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _skillScores[skillId] = newValue;
-                        });
-                      },
-                    ),
-                  );
-                }),
-                
-                const Divider(height: 20),
-                
-                ExpansionTile(
-                  title: const Text('📝 ملحوظات سريرية للمجموعة', style: TextStyle(color: Colors.grey)),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: TextFormField(
-                        initialValue: _clinicalNotes[groupName],
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          hintText: 'أضف ملاحظات محددة حول جودة الحركة/الأداء هنا...',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (value) {
-                          _clinicalNotes[groupName] = value;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            padding: EdgeInsets.all(8.w),
+            child: TextFormField(
+              controller: TextEditingController(text: _clinicalNotes[groupName]),
+              style: TextStyle(fontSize: 14.sp, color: textColor),
+              decoration: InputDecoration(
+                labelText: 'ملاحظات للمجموعة',
+                labelStyle: TextStyle(color: isDark ? Colors.grey : Colors.black54),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.r)),
+              ),
+              onChanged: (v) => _clinicalNotes[groupName] = v,
             ),
-          ),
+          )
         ],
       ),
     );
@@ -239,41 +202,28 @@ class _SkillsAssessmentScreenState extends State<SkillsAssessmentScreen> {
 
   Widget _buildSaveButtons() {
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha(77), 
-            spreadRadius: 2,
-            blurRadius: 5,
-          ),
-        ],
+        color: Theme.of(context).scaffoldBackgroundColor,
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, -5))],
       ),
       child: Row(
-         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           Expanded(
-            child: ElevatedButton.icon(
+            child: OutlinedButton.icon(
               onPressed: () => _saveAssessment('Draft'),
-              icon: const Icon(Icons.drafts, color: Colors.white),
-              label: const Text('حفظ كمسودة 🕓', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-              ),
+              icon: const Icon(Icons.save_as_outlined),
+              label: const Text('مسودة'),
+              style: OutlinedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 14.h)),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 12.w),
           Expanded(
-            child: ElevatedButton.icon(
+            child: FilledButton.icon(
               onPressed: () => _saveAssessment('Completed'),
-              icon: const Icon(Icons.check_circle, color: Colors.white),
-              label: const Text('إنهاء وحفظ التقرير ✅', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-              ),
+              icon: const Icon(Icons.check),
+              label: const Text('إنهاء وحفظ'),
+              style: FilledButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 14.h)),
             ),
           ),
         ],

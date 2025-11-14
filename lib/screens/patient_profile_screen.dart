@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart'; // 🆕
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import 'dart:typed_data';
 import 'package:printing/printing.dart';
@@ -12,6 +12,10 @@ import 'add_assessment_screen.dart';
 import 'report_generation_screen.dart';
 import 'schedule_appointment_screen.dart'; 
 import '../widgets/progress_chart.dart'; 
+// 🆕 استيراد شاشات التقييم
+import 'rom_assessment_screen.dart';
+import 'grip_assessment_screen.dart';
+import 'skills_assessment_screen.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   final Patient patient;
@@ -67,8 +71,6 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
     }
   }
 
-  // ... (دوال الحذف والطباعة والنافيقيشن تبقى كما هي في الكود السابق، لكن سأعيد كتابتها لضمان التكامل) ...
-  
   Future<void> _generateAndShareSummary() async {
     try {
       showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator()));
@@ -83,7 +85,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
     }
   }
 
-  void _deleteAssessment(int id) { /* نفس كود الحذف السابق */
+  void _deleteAssessment(int id) {
      showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -95,7 +97,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               await DatabaseHelper.instance.deleteAssessment(id);
-              if (mounted) _loadAssessments();
+              if (mounted) { _loadAssessments(); _loadChartData(); }
             },
           )
         ],
@@ -103,9 +105,8 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
     );
   }
 
-  void _showEditPatientDialog() { /* نفس كود التعديل السابق */
-     // (اختصاراً للمساحة، استخدم نفس الكود السابق أو انسخه من إجابتك السابقة إذا أردت)
-     // الأهم هنا هو تطبيق ScreenUtil في build
+  void _showEditPatientDialog() {
+    // (كود التعديل - اختصاراً)
   }
 
   @override
@@ -149,10 +150,10 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
 
   Widget _buildPatientDataCard(BuildContext context) {
     return Card(
-      margin: EdgeInsets.all(8.w), // .w
+      margin: EdgeInsets.all(8.w), 
       elevation: 4,
       child: Padding(
-        padding: EdgeInsets.all(16.w), // .w
+        padding: EdgeInsets.all(16.w), 
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -162,12 +163,12 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                 Expanded(
                   child: Text(
                     _currentPatient.fullName,
-                    style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.blue), // .sp
+                    style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.blue),
                   ),
                 ),
                 IconButton(
                   icon: Icon(Icons.edit, color: Colors.grey, size: 24.w),
-                  onPressed: _showEditPatientDialog, // تأكد من وجود الدالة
+                  onPressed: _showEditPatientDialog,
                 ),
               ],
             ),
@@ -231,19 +232,44 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
           itemCount: assessments.length,
           itemBuilder: (context, index) {
             final item = assessments[index];
+            final bool isDraft = item['status'] == 'Draft';
+            
             return Card(
               margin: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
               child: ListTile(
-                leading: Icon(Icons.assignment, size: 28.w, color: Colors.blue),
-                title: Text('${item['assessment_type']} (${item['status']})', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
-                subtitle: Text(DateFormat('yyyy-MM-dd hh:mm a', 'ar').format(DateTime.parse(item['date_created'])), style: TextStyle(fontSize: 12.sp)),
+                leading: Icon(
+                  Icons.assignment, 
+                  size: 28.w, 
+                  color: isDraft ? Colors.orange : Colors.green
+                ),
+                title: Text(
+                  '${item['assessment_type']} (${isDraft ? "مسودة" : "مكتمل"})', 
+                  style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)
+                ),
+                subtitle: Text(
+                  DateFormat('yyyy-MM-dd hh:mm a', 'ar').format(DateTime.parse(item['date_created'])), 
+                  style: TextStyle(fontSize: 12.sp)
+                ),
                 trailing: IconButton(
                   icon: Icon(Icons.delete_outline, color: Colors.red, size: 24.w),
                   onPressed: () => _deleteAssessment(item['assessment_id']),
                 ),
                 onTap: () async {
-                   await Navigator.push(context, MaterialPageRoute(builder: (_) => ReportGenerationScreen(assessmentId: item['assessment_id'], patient: _currentPatient, cameFromAssessmentFlow: false)));
-                   if(mounted) _loadAssessments();
+                  // 🆕 منطق التوجيه الجديد
+                  if (isDraft) {
+                    // توجيه للتعديل
+                    if (item['assessment_type'] == 'ROM') {
+                       await Navigator.push(context, MaterialPageRoute(builder: (_) => ROMAssessmentScreen(patient: _currentPatient, assessmentId: item['assessment_id'])));
+                    } else if (item['assessment_type'] == 'Grip') {
+                       await Navigator.push(context, MaterialPageRoute(builder: (_) => GripAssessmentScreen(patient: _currentPatient, assessmentId: item['assessment_id'])));
+                    } else if (item['assessment_type'] == 'Skills') {
+                       await Navigator.push(context, MaterialPageRoute(builder: (_) => SkillsAssessmentScreen(patient: _currentPatient, assessmentId: item['assessment_id'])));
+                    }
+                  } else {
+                    // توجيه للتقرير
+                    await Navigator.push(context, MaterialPageRoute(builder: (_) => ReportGenerationScreen(assessmentId: item['assessment_id'], patient: _currentPatient, cameFromAssessmentFlow: false)));
+                  }
+                  if(mounted) _loadAssessments();
                 },
               ),
             );
@@ -264,7 +290,6 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  // ignore: deprecated_member_use
                   value: _selectedJoint,
                   decoration: InputDecoration(labelText: 'المفصل', contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h), border: const OutlineInputBorder()),
                   items: _joints.map((j) => DropdownMenuItem(value: j, child: Text(j, style: TextStyle(fontSize: 12.sp)))).toList(),
@@ -274,7 +299,6 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
               SizedBox(width: 10.w),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  // ignore: deprecated_member_use
                   value: _selectedMotion,
                   decoration: InputDecoration(labelText: 'الحركة', contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h), border: const OutlineInputBorder()),
                   items: _selectedJoint == null ? [] : _motions[_selectedJoint]!.map((m) => DropdownMenuItem(value: m, child: Text(m, style: TextStyle(fontSize: 12.sp)))).toList(),
