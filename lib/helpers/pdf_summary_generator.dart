@@ -1,5 +1,4 @@
-// 📦 lib/helpers/pdf_summary_generator.dart
-
+import 'dart:io'; // ✅
 import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
@@ -9,10 +8,10 @@ import 'package:intl/intl.dart';
 import '../database/database_helper.dart';
 import '../models/ot_settings.dart';
 import '../models/patient.dart';
-import 'pdf_generator.dart'; // 🆕 (✅ هذا هو الإصلاح)
+import 'pdf_generator.dart';
 
 class PdfSummaryGenerator {
-  
+  // ... (دوال الخطوط كما هي) ...
   static pw.Font? _arabicFont;
   static pw.Font? _emojiFont;
 
@@ -30,7 +29,6 @@ class PdfSummaryGenerator {
     return _emojiFont!;
   }
 
-  // الدالة الرئيسية
   static Future<Uint8List> generatePdfSummary(Patient patient) async {
     final db = DatabaseHelper.instance;
     final doc = pw.Document();
@@ -41,14 +39,20 @@ class PdfSummaryGenerator {
     final OtSettings? settings = await db.getSettings();
     final String currentDate = DateFormat('d MMMM yyyy', 'ar').format(DateTime.now());
     
+    // ✅ 1. تحميل الشعار
+    pw.MemoryImage? logoImage;
+    if (settings?.clinicLogoPath != null) {
+      final file = File(settings!.clinicLogoPath!);
+      if (await file.exists()) {
+        logoImage = pw.MemoryImage(await file.readAsBytes());
+      }
+    }
+
+    // ... (باقي كود جلب البيانات كما هو) ...
     final Map<String, int?> latestIds = await db.getLatestAssessmentIds(patient.patientId!);
-    
-    final romResults = latestIds['ROM'] != null 
-        ? await db.getROMResultsForReport(latestIds['ROM']!) : null;
-    final gripResults = latestIds['Grip'] != null
-        ? await db.getGripResultsForReport(latestIds['Grip']!) : null;
-    final skillsResults = latestIds['Skills'] != null
-        ? await db.getSkillsResultsForReport(latestIds['Skills']!) : null;
+    final romResults = latestIds['ROM'] != null ? await db.getROMResultsForReport(latestIds['ROM']!) : null;
+    final gripResults = latestIds['Grip'] != null ? await db.getGripResultsForReport(latestIds['Grip']!) : null;
+    final skillsResults = latestIds['Skills'] != null ? await db.getSkillsResultsForReport(latestIds['Skills']!) : null;
         
     doc.addPage(
       pw.MultiPage(
@@ -62,12 +66,13 @@ class PdfSummaryGenerator {
         ),
         
         header: (pw.Context context) {
-          return PdfReportGenerator.buildHeader(context, settings, patient, currentDate);
+          // ✅ 2. تمرير الشعار
+          return PdfReportGenerator.buildHeader(context, settings, patient, currentDate, logoImage);
         },
         
         build: (pw.Context context) {
+          // ... (بناء المحتوى كما هو) ...
           List<pw.Widget> widgets = [];
-          
           widgets.add(pw.Text('ملخص آخر التقييمات', style: pw.Theme.of(context).header3));
           widgets.add(pw.SizedBox(height: 20));
 
@@ -75,21 +80,17 @@ class PdfSummaryGenerator {
             widgets.add(PdfReportGenerator.buildROMResults(context, romResults));
             widgets.add(pw.SizedBox(height: 25));
           }
-
           if (gripResults != null && gripResults.isNotEmpty) {
             widgets.add(PdfReportGenerator.buildGripResults(context, gripResults));
             widgets.add(pw.SizedBox(height: 25));
           }
-
           if (skillsResults != null && skillsResults.isNotEmpty) {
             widgets.add(PdfReportGenerator.buildSkillsResults(context, skillsResults));
             widgets.add(pw.SizedBox(height: 25));
           }
-
           if (romResults == null && gripResults == null && skillsResults == null) {
             widgets.add(pw.Center(child: pw.Text('لا توجد أي تقييمات مكتملة لهذا المريض.')));
           }
-
           return widgets;
         },
         

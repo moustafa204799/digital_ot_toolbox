@@ -9,8 +9,7 @@ import '../models/ot_settings.dart';
 import '../models/patient.dart'; 
 
 const String databaseName = 'ot_toolbox.db';
-// ⬅️ (✅ تعديل: زيادة الإصدار لإجبار الترقية أو الإنشاء)
-const int databaseVersion = 5; 
+const int databaseVersion = 6; // 🆕 الإصدار الجديد لدعم الثيم
 
 class DatabaseHelper {
   // تصميم Singleton (نقطة دخول واحدة لقاعدة البيانات)
@@ -46,7 +45,8 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY,
         ot_name TEXT NOT NULL,
         clinic_logo_path TEXT,
-        app_version TEXT
+        app_version TEXT,
+        theme_mode TEXT DEFAULT 'system' -- 🆕 عمود الثيم الجديد
       )
     ''');
     await db.execute('''
@@ -69,7 +69,7 @@ class DatabaseHelper {
         FOREIGN KEY (patient_id) REFERENCES Patients(patient_id)
           ON DELETE CASCADE 
       )
-    '''); // ⬅️ (✅ تعديل: إضافة ON DELETE CASCADE)
+    ''');
     await db.execute('''
       CREATE TABLE Scheduled_Appointments (
         appointment_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +79,7 @@ class DatabaseHelper {
         FOREIGN KEY (patient_id) REFERENCES Patients(patient_id)
           ON DELETE CASCADE
       )
-    '''); // ⬅️ (✅ تعديل: إضافة ON DELETE CASCADE)
+    ''');
     await db.execute('''
       CREATE TABLE ROM_Results (
         result_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,7 +93,7 @@ class DatabaseHelper {
         FOREIGN KEY (assessment_id) REFERENCES Assessments(assessment_id)
           ON DELETE CASCADE
       )
-    '''); // ⬅️ (✅ تعديل: إضافة ON DELETE CASCADE)
+    ''');
     await db.execute('''
       CREATE TABLE Skills_Master (
         skill_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,7 +113,7 @@ class DatabaseHelper {
           ON DELETE CASCADE,
         FOREIGN KEY (skill_id) REFERENCES Skills_Master(skill_id)
       )
-    '''); // ⬅️ (✅ تعديل: إضافة ON DELETE CASCADE)
+    ''');
     await db.execute('''
       CREATE TABLE Grip_Assessment_Results (
         result_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,21 +128,16 @@ class DatabaseHelper {
         FOREIGN KEY (assessment_id) REFERENCES Assessments(assessment_id)
           ON DELETE CASCADE
       )
-    '''); // ⬅️ (✅ تعديل: إضافة ON DELETE CASCADE)
+    ''');
   }
 
   // دالة الترقية (مهمة للمستخدمين الحاليين)
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // (ملاحظة: لتطبيق CASCADE على قواعد البيانات الموجودة يتطلب الأمر
-    // إعادة بناء الجداول، وهو أمر معقد. هذا الكود سيعمل للترقيات السابقة
-    // ولكن لن يضيف CASCADE للمستخدمين القدامى إلا إذا حذفو التطبيق.
-    // المستخدمون الجدد سيحصلون على CASCADE من _onCreate)
-
     if (oldVersion < 2) {
       try {
         await db.execute("ALTER TABLE ROM_Results ADD COLUMN clinical_note TEXT");
       } catch (e) {
-        debugPrint('Column clinical_note already exists in ROM_Results: $e'); 
+        debugPrint('Column clinical_note already exists: $e'); 
       }
     }
     if (oldVersion < 3) {
@@ -158,7 +153,7 @@ class DatabaseHelper {
             ON DELETE CASCADE, 
           FOREIGN KEY (skill_id) REFERENCES Skills_Master(skill_id)
         )
-      '''); // ⬅️ (✅ تعديل: تمت الإضافة هنا أيضاً)
+      ''');
     }
     if (oldVersion < 4) {
       await db.execute("DROP TABLE IF EXISTS Grip_Assessment_Results");
@@ -176,15 +171,15 @@ class DatabaseHelper {
           FOREIGN KEY (assessment_id) REFERENCES Assessments(assessment_id)
             ON DELETE CASCADE
         )
-      '''); // ⬅️ (✅ تعديل: تمت الإضافة هنا أيضاً)
+      ''');
     }
-    
-    // (للتطبيق الكامل، ستحتاج لإضافة أوامر 'PRAGMA foreign_keys=OFF'
-    // ثم 'CREATE TABLE' جديدة، ثم 'INSERT INTO ... SELECT'
-    // ثم 'DROP TABLE' قديمة، ثم 'PRAGMA foreign_keys=ON'
-    // ولكننا سنبقيها بسيطة الآن)
-    if (oldVersion < 5) {
-       // يمكنك إضافة التغييرات المستقبلية هنا
+    // 🆕 الترقية للإصدار 6: إضافة عمود الثيم
+    if (oldVersion < 6) {
+      try {
+        await db.execute("ALTER TABLE OT_Settings ADD COLUMN theme_mode TEXT DEFAULT 'system'");
+      } catch (e) {
+        debugPrint('Error adding theme_mode column: $e');
+      }
     }
   }
 
@@ -201,6 +196,7 @@ class DatabaseHelper {
     return await db.insert('OT_Settings', {
       'ot_name': 'أخصائي العلاج الوظيفي (افتراضي)',
       'app_version': '1.0.0',
+      'theme_mode': 'system', // 🆕 القيمة الافتراضية
     });
   }
 
@@ -218,12 +214,22 @@ class DatabaseHelper {
   
   Future<int> updateSettings(OtSettings settings) async {
     final db = await instance.database;
-    return await db.update(
-      'OT_Settings',
-      settings.toMap(),
-      where: 'id = ?',
-      whereArgs: [1],
-    );
+    // ✅ استخدام ID الكائن لتحديث الصف الصحيح
+    if (settings.id != null) {
+      return await db.update(
+        'OT_Settings',
+        settings.toMap(),
+        where: 'id = ?',
+        whereArgs: [settings.id],
+      );
+    } else {
+      // تحديث أول صف موجود كخيار بديل
+      return await db.update(
+        'OT_Settings',
+        settings.toMap(),
+        where: 'id = (SELECT min(id) FROM OT_Settings)',
+      );
+    }
   }
 
   // ==========================================
@@ -257,20 +263,74 @@ class DatabaseHelper {
     return null;
   }
 
-  // ⬅️ (✅ تعديل: تم تبسيط الدالة بالكامل)
+  Future<int> updatePatient(Patient patient) async {
+    final db = await instance.database;
+    return await db.update(
+      'Patients',
+      patient.toMap(),
+      where: 'patient_id = ?',
+      whereArgs: [patient.patientId],
+    );
+  }
+
   Future<int> deletePatient(int patientId) async {
     final db = await instance.database;
-    
-    // بفضل "ON DELETE CASCADE"، سيقوم SQLite بحذف كل السجلات
-    // في (Assessments, Scheduled_Appointments) المرتبطة بهذا المريض،
-    // وكذلك كل السجلات في (ROM_Results, Skills_Results, Grip_Assessment_Results)
-    // المرتبطة بتلك التقييمات.
-    
+    // ON DELETE CASCADE سيحذف البيانات المرتبطة تلقائياً
     return await db.delete(
       'Patients',
       where: 'patient_id = ?',
       whereArgs: [patientId],
     );
+  }
+
+  // ==========================================
+  //      وظائف المواعيد (Appointments)
+  // ==========================================
+
+  Future<int> insertAppointment(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('Scheduled_Appointments', row);
+  }
+
+  Future<List<Map<String, dynamic>>> getAppointmentsForPatient(int patientId) async {
+    final db = await instance.database;
+    return await db.query(
+      'Scheduled_Appointments',
+      where: 'patient_id = ?',
+      whereArgs: [patientId],
+      orderBy: 'appointment_date ASC',
+    );
+  }
+
+  Future<int> deleteAppointment(int appointmentId) async {
+    final db = await instance.database;
+    return await db.delete(
+      'Scheduled_Appointments',
+      where: 'appointment_id = ?',
+      whereArgs: [appointmentId],
+    );
+  }
+
+  // ==========================================
+  //      وظائف الرسوم البيانية (Charts)
+  // ==========================================
+
+  Future<List<Map<String, dynamic>>> getRomProgress({
+    required int patientId,
+    required String jointName,
+    required String motionType,
+  }) async {
+    final db = await instance.database;
+    return await db.rawQuery('''
+      SELECT T2.date_created, T1.active_range
+      FROM ROM_Results T1
+      INNER JOIN Assessments T2 ON T1.assessment_id = T2.assessment_id
+      WHERE T2.patient_id = ? 
+      AND T1.joint_name = ? 
+      AND T1.motion_type = ?
+      AND T2.status = 'Completed'
+      ORDER BY T2.date_created ASC
+    ''', [patientId, jointName, motionType]);
   }
 
   // ==========================================
@@ -313,7 +373,6 @@ class DatabaseHelper {
     final db = await instance.database;
     final today = DateTime.now().toIso8601String().substring(0, 10);
     
-    // ⬅️ (✅ تعديل...): تم تطبيق هذا الإصلاح في إجابتنا السابقة
     return await db.rawQuery('''
       SELECT T1.appointment_date, T2.full_name, T2.patient_id
       FROM Scheduled_Appointments T1
@@ -352,8 +411,6 @@ class DatabaseHelper {
     if (count != null && count > 0) return; 
     
     final List<Map<String, dynamic>> initialSkills = [
-      // ... (كل بيانات المهارات الأولية كما هي) ...
-      // Group 1: مهارات دقيقة وبناء
       {'skill_group': 'مهارات دقيقة وبناء', 'skill_description': 'مدّ اليد والإمساك بالأشياء لوضعها في الفم', 'min_age_months': 6},
       {'skill_group': 'مهارات دقيقة وبناء', 'skill_description': 'التحكم في ترك الأشياء بإرادة', 'min_age_months': 6},
       {'skill_group': 'مهارات دقيقة وبناء', 'skill_description': 'التقاط الأشياء الصغيرة بين الإبهام وأصبع واحد', 'min_age_months': 6},
@@ -612,7 +669,6 @@ class DatabaseHelper {
     ''', [assessmentId]);
   }
 
-
   Future<List<Map<String, dynamic>>> getAssessmentsForPatient(int patientId) async {
     final db = await instance.database;
     return await db.query(
@@ -627,14 +683,8 @@ class DatabaseHelper {
   //         وظائف الحذف
   // ==========================================
 
-  // ⬅️ (✅ تعديل: تم تبسيط الدالة بالكامل بفضل ON DELETE CASCADE)
   Future<int> deleteAssessment(int assessmentId) async {
     final db = await instance.database;
-    
-    // الآن، عند حذف 'Assessment'، سيقوم SQLite تلقائيًا
-    // بحذف جميع السجلات المرتبطة في (ROM_Results, Grip_Assessment_Results, Skills_Results)
-    // التي تحتوي على هذا (assessmentId)
-    
     return await db.delete(
       'Assessments',
       where: 'assessment_id = ?',

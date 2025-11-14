@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; 
-
-import '../database/database_helper.dart'; // ✅ تم تصحيح المسار
-import '../models/patient.dart'; // ✅ تم تصحيح المسار
+import 'package:flutter_screenutil/flutter_screenutil.dart'; // 🆕
+import 'package:intl/intl.dart';
+import '../models/patient.dart';
+import '../database/database_helper.dart';
 
 class AddPatientScreen extends StatefulWidget {
   const AddPatientScreen({super.key});
@@ -15,149 +15,145 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _diagnosisController = TextEditingController();
-  final _dobController = TextEditingController();
-  
   DateTime? _selectedDate;
   String? _selectedGender;
 
-  // دالة لاختيار تاريخ الميلاد
-  Future<void> _selectDate(BuildContext context) async {
+  void _pickDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(1900),
+      initialDate: DateTime(2018),
+      firstDate: DateTime(1990),
       lastDate: DateTime.now(),
     );
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
-        // تنسيق التاريخ وحفظه في المتحكم (Controller)
-        // سنستخدم تنسيق ISO 8601 (YYYY-MM-DD) للحفظ في قاعدة البيانات
-        _dobController.text = DateFormat('yyyy-MM-dd').format(picked);
       });
     }
   }
 
-  // دالة لحفظ المريض في قاعدة البيانات
   void _savePatient() async {
-    if (_formKey.currentState!.validate() && _selectedDate != null) {
+    if (_formKey.currentState!.validate()) {
+      if (_selectedDate == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('يرجى اختيار تاريخ الميلاد')),
+        );
+        return;
+      }
+
       final newPatient = Patient(
         fullName: _nameController.text,
-        diagnosis: _diagnosisController.text.isNotEmpty ? _diagnosisController.text : null,
-        dob: _dobController.text,
+        diagnosis: _diagnosisController.text,
+        dob: _selectedDate!.toIso8601String(),
         gender: _selectedGender,
       );
 
-      final id = await DatabaseHelper.instance.insertPatient(newPatient);
+      await DatabaseHelper.instance.insertPatient(newPatient);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم إضافة المريض: ${newPatient.fullName} برقم $id')),
-        );
-        // العودة إلى الشاشة السابقة (ستكون شاشة لوحة التحكم أو قائمة المرضى)
-        Navigator.of(context).pop();
-      }
-    } else if (_selectedDate == null) {
-       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('الرجاء اختيار تاريخ الميلاد')),
-        );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إضافة المريض بنجاح ✅')),
+      );
+      Navigator.of(context).pop();
     }
-  }
-  
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _diagnosisController.dispose();
-    _dobController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('➕ إضافة مريض جديد'),
+        title: Text('إضافة مريض جديد', style: TextStyle(fontSize: 20.sp)), // .sp
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.w), // .w
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              // حقل الاسم الكامل
+            children: [
+              // أيقونة تعبيرية كبيرة
+              Center(
+                child: CircleAvatar(
+                  radius: 40.r, // .r
+                  backgroundColor: Colors.blue.shade100,
+                  child: Icon(Icons.person_add, size: 40.w, color: Colors.blue), // .w
+                ),
+              ),
+              SizedBox(height: 24.h), // .h
+
+              // حقل الاسم
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'الاسم الكامل للمريض *',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'الاسم مطلوب';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              
-              // حقل تاريخ الميلاد
-              TextFormField(
-                controller: _dobController,
-                readOnly: true,
+                style: TextStyle(fontSize: 16.sp), // .sp
                 decoration: InputDecoration(
-                  labelText: 'تاريخ الميلاد *',
+                  labelText: 'الاسم الكامل',
+                  labelStyle: TextStyle(fontSize: 14.sp),
                   border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.calendar_today),
-                    onPressed: () => _selectDate(context),
-                  ),
+                  prefixIcon: Icon(Icons.person, size: 22.w),
                 ),
-                validator: (value) {
-                  if (_selectedDate == null) {
-                    return 'تاريخ الميلاد مطلوب';
-                  }
-                  return null;
-                },
+                validator: (val) => val!.isEmpty ? 'الاسم مطلوب' : null,
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16.h),
 
-              // حقل التشخيص (اختياري)
+              // حقل تاريخ الميلاد
+              ListTile(
+                contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+                shape: RoundedRectangleBorder(
+                  side: const BorderSide(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(4.r),
+                ),
+                title: Text(
+                  _selectedDate == null
+                      ? 'تاريخ الميلاد'
+                      : 'الميلاد: ${DateFormat('yyyy-MM-dd').format(_selectedDate!)}',
+                  style: TextStyle(fontSize: 16.sp),
+                ),
+                trailing: Icon(Icons.calendar_today, size: 22.w),
+                onTap: _pickDate,
+              ),
+              SizedBox(height: 16.h),
+
+              // حقل الجنس (Dropdown)
+              DropdownButtonFormField<String>(
+                value: _selectedGender,
+                decoration: InputDecoration(
+                  labelText: 'الجنس',
+                  labelStyle: TextStyle(fontSize: 14.sp),
+                  border: const OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.wc, size: 22.w),
+                ),
+                items: ['ذكر', 'أنثى'].map((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value, style: TextStyle(fontSize: 16.sp)),
+                  );
+                }).toList(),
+                onChanged: (newValue) => setState(() => _selectedGender = newValue),
+              ),
+              SizedBox(height: 16.h),
+
+              // حقل التشخيص
               TextFormField(
                 controller: _diagnosisController,
-                decoration: const InputDecoration(
-                  labelText: 'التشخيص (مثل: CP، تأخر نمو)',
-                  border: OutlineInputBorder(),
+                style: TextStyle(fontSize: 16.sp),
+                decoration: InputDecoration(
+                  labelText: 'التشخيص (اختياري)',
+                  labelStyle: TextStyle(fontSize: 14.sp),
+                  border: const OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.notes, size: 22.w),
                 ),
+                maxLines: 3,
               ),
-              const SizedBox(height: 16),
-
-              // اختيار الجنس
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'الجنس (اختياري)',
-                  border: OutlineInputBorder(),
-                ),
-                initialValue: _selectedGender,
-                items: const [
-                  DropdownMenuItem(value: 'ذكر', child: Text('ذكر 👦')),
-                  DropdownMenuItem(value: 'أنثى', child: Text('أنثى 👧')),
-                ],
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _selectedGender = newValue;
-                  });
-                },
-              ),
-              const SizedBox(height: 30),
+              SizedBox(height: 32.h),
 
               // زر الحفظ
               ElevatedButton.icon(
                 onPressed: _savePatient,
-                icon: const Icon(Icons.person_add),
-                label: const Text('حفظ وإضافة المريض', style: TextStyle(fontSize: 18)),
+                icon: Icon(Icons.save, size: 24.w),
+                label: Text('حفظ البيانات', style: TextStyle(fontSize: 18.sp)),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  padding: EdgeInsets.symmetric(vertical: 14.h),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
                 ),
               ),
             ],
@@ -166,4 +162,4 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
       ),
     );
   }
-}  
+}
