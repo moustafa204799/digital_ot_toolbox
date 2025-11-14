@@ -262,7 +262,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // ⬅️ (✅ تعديل...): تم تطبيق هذا الإصلاح في إجابتنا السابقة
               subtitle: Text('موعد في: ${DateFormat('hh:mm a', 'ar').format(DateTime.parse(app['appointment_date']))}'),
               onTap: () => _navigateToPatientProfile(app['patient_id']),
-            )).toList(),
+            )),
       ],
     );
   }
@@ -291,7 +291,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             trailing: Icon(Icons.arrow_forward_ios, size: 16.sp, color: statusColor), 
             onTap: () => _navigateToReport(context, assessment),
           );
-        }).toList(),
+        }),
       ],
     );
   }

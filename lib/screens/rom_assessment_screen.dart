@@ -273,7 +273,7 @@ class _ROMAssessmentScreenState extends State<ROMAssessmentScreen> with SingleTi
             final jointName = entry.key;
             final motions = entry.value;
             return _buildJointExpansionTile(side, jointName, motions);
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -324,7 +324,7 @@ class _ROMAssessmentScreenState extends State<ROMAssessmentScreen> with SingleTi
                     _buildNoteButton(key), 
                   ],
                 );
-              }).toList(),
+              }),
             ],
           ),
         ],

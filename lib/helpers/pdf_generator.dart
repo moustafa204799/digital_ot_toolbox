@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-// import 'package:printing/printing.dart'; // 🆕 (تعديل) تم حذف هذا السطر لأنه غير مستخدم هنا
 import 'package:intl/intl.dart';
 
 import '../database/database_helper.dart';
@@ -30,7 +29,6 @@ class PdfReportGenerator {
     return _emojiFont!;
   }
 
-
   static Future<Uint8List> generatePdfReport(int assessmentId, Patient patient) async {
     final db = DatabaseHelper.instance;
     final doc = pw.Document();
@@ -49,7 +47,6 @@ class PdfReportGenerator {
     final String assessmentDate = DateFormat('d MMMM yyyy', 'ar')
         .format(DateTime.parse(assessment['date_created']));
         
-    // 🆕 (✅ تعديل) تم استدعاء الدالة المفقودة هنا
     final List<Map<String, dynamic>> results = await _loadResultsData(assessmentId, assessmentType, db);
 
     doc.addPage(
@@ -84,7 +81,6 @@ class PdfReportGenerator {
 
   // --- دوال مساعدة لبناء أجزاء الـ PDF ---
 
-  // 🆕 (✅ تعديل) إضافة "static"
   static pw.Widget buildHeader(pw.Context context, OtSettings? settings, Patient patient, String assessmentDate) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -98,7 +94,6 @@ class PdfReportGenerator {
           'الأخصائي: ${settings?.otName ?? 'غير محدد'}',
           style: pw.Theme.of(context).header5,
         ),
-        // TODO: يمكن إضافة شعار العيادة هنا (settings.clinicLogoPath)
         pw.Divider(thickness: 2),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -119,7 +114,6 @@ class PdfReportGenerator {
     );
   }
 
-  // 🆕 (✅ تعديل) إضافة "static"
   static pw.Widget buildFooter(pw.Context context) {
     return pw.Container(
       alignment: pw.Alignment.center,
@@ -131,7 +125,6 @@ class PdfReportGenerator {
   }
 
   static pw.Widget _buildResults(pw.Context context, String assessmentType, List<Map<String, dynamic>> results) {
-    
     if (results.isEmpty) {
       return pw.Center(child: pw.Text('لا توجد نتائج لعرضها.'));
     }
@@ -140,7 +133,7 @@ class PdfReportGenerator {
       case 'ROM':
         return buildROMResults(context, results); 
       case 'Grip':
-        return buildGripResults(context, results);
+        return buildGripResults(context, results); // ✅ تم التحديث
       case 'Skills':
         return buildSkillsResults(context, results);
       default:
@@ -148,7 +141,6 @@ class PdfReportGenerator {
     }
   }
 
-  // 🆕 (✅ تعديل) إضافة الدالة المفقودة
   static Future<List<Map<String, dynamic>>> _loadResultsData(int assessmentId, String assessmentType, DatabaseHelper db) {
     switch (assessmentType) {
       case 'ROM':
@@ -162,7 +154,7 @@ class PdfReportGenerator {
     }
   }
 
-  // --- دوال بناء الجداول (ROM, Grip, Skills) ---
+  // --- دوال بناء الجداول والنتائج ---
 
   static pw.Widget buildROMResults(pw.Context context, List<Map<String, dynamic>> results) {
     final headers = ['الحركة/المفصل', 'نشط (Active)', 'سلبي (Passive)', 'الألم'];
@@ -192,34 +184,103 @@ class PdfReportGenerator {
     );
   }
 
+  // -------------------------------------------------
+  // 🆕 (✅ دالة عرض نتائج القبضة المحدثة بالكامل)
+  // -------------------------------------------------
   static pw.Widget buildGripResults(pw.Context context, List<Map<String, dynamic>> results) {
-    final headers = ['نوع القبضة', 'اليسرى (Score)', 'اليمنى (Score)', 'ملحوظات سريرية'];
-    final data = results.map((res) {
-      return [
-        res['grip_type'],
-        '${res['score_left'] ?? 'N/A'} / 5',
-        '${res['score_right'] ?? 'N/A'} / 5',
-        res['clinical_note'] ?? '',
-      ];
-    }).toList();
+    // استخراج بيانات كل يد على حدة
+    final rightHandData = results.firstWhere(
+      (r) => r['hand'] == 'Right', 
+      orElse: () => <String, dynamic>{},
+    );
+    final leftHandData = results.firstWhere(
+      (r) => r['hand'] == 'Left', 
+      orElse: () => <String, dynamic>{},
+    );
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text('نتائج تقييم نوع القبضة (Grip)', style: pw.Theme.of(context).header4),
-        pw.SizedBox(height: 10),
-        pw.TableHelper.fromTextArray( 
-          headers: headers,
-          data: data,
-          border: pw.TableBorder.all(width: 1, color: PdfColors.grey),
-          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-          cellAlignment: pw.Alignment.centerRight,
-          cellPadding: const pw.EdgeInsets.all(5),
-          columnWidths: {
-            3: const pw.FlexColumnWidth(2), 
-          },
-        ),
+        pw.Text('نتائج تقييم القبضة (Grip Assessment)', style: pw.Theme.of(context).header4),
+        pw.SizedBox(height: 15),
+        
+        // عرض بيانات اليد اليمنى
+        _buildHandSection(context, 'الطرف الأيمن (Right Hand)', rightHandData),
+        pw.SizedBox(height: 15),
+        
+        // عرض بيانات اليد اليسرى
+        _buildHandSection(context, 'الطرف الأيسر (Left Hand)', leftHandData),
       ],
+    );
+  }
+
+  // 🆕 (✅ دالة مساعدة لتنسيق بيانات اليد الواحدة)
+  static pw.Widget _buildHandSection(pw.Context context, String title, Map<String, dynamic> data) {
+    if (data.isEmpty) {
+      return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text(title, style: pw.Theme.of(context).header5.copyWith(color: PdfColors.blue800)),
+        pw.Text('لا توجد بيانات مسجلة لهذه اليد.', style: const pw.TextStyle(color: PdfColors.grey)),
+      ]);
+    }
+
+    // ربط المفاتيح المخزنة في قاعدة البيانات بالعناوين العربية
+    final Map<String, String> labels = {
+      'grasp_type': 'نوع القبضة',
+      'holding_ability': 'قدرة الإمساك',
+      'release_ability': 'التحرير',
+      'coordination': 'التنسيق',
+      'atypical_signs': 'علامات غير نمطية',
+      'clinical_note': 'ملاحظات سريرية',
+    };
+
+    return pw.Container(
+      width: double.infinity, // جعل الإطار يمتد للعرض الكامل
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey400),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+        color: PdfColors.grey100,
+      ),
+      padding: const pw.EdgeInsets.all(12),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            children: [
+              pw.Container(
+                width: 8, height: 8,
+                decoration: const pw.BoxDecoration(color: PdfColors.blue800, shape: pw.BoxShape.circle),
+              ),
+              pw.SizedBox(width: 6),
+              pw.Text(title, style: pw.Theme.of(context).header5.copyWith(color: PdfColors.blue800)),
+            ],
+          ),
+          pw.SizedBox(height: 5),
+          pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+          pw.SizedBox(height: 5),
+          
+          ...labels.entries.map((entry) {
+            final value = data[entry.key]?.toString() ?? '';
+            // لا نعرض الحقل إذا كانت قيمته فارغة
+            if (value.isEmpty || value == 'null') return pw.Container();
+
+            return pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 4),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(
+                    width: 110, // عرض ثابت للعنوان
+                    child: pw.Text('${entry.value}:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                  ),
+                  pw.Expanded(
+                    child: pw.Text(value, style: const pw.TextStyle(fontSize: 10)),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
     );
   }
 
@@ -294,4 +355,4 @@ class PdfReportGenerator {
       ],
     );
   }
-} // 🆕 (✅ تعديل) إضافة القوس المفقود
+}

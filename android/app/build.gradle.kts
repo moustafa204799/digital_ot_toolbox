@@ -11,12 +11,14 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        // تم التحديث إلى الإصدار 17 لدعم share_plus
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        // تم التحديث إلى الإصدار 17 لدعم share_plus
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {

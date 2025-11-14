@@ -253,7 +253,7 @@ class _GripAssessmentScreenState extends State<GripAssessmentScreen> with Single
                 });
               },
             );
-          }).toList(),
+          }),
 
           // 6. ملاحظات إضافية
           ExpansionTile(

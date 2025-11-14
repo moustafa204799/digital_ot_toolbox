@@ -206,7 +206,7 @@ class _SkillsAssessmentScreenState extends State<SkillsAssessmentScreen> {
                       },
                     ),
                   );
-                }).toList(),
+                }),
                 
                 const Divider(height: 20),
                 
